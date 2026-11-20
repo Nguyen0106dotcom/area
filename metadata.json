@@ -1,0 +1,6 @@
+{
+  "name": "Chỉ Số Quy Hoạch",
+  "description": "Tra cứu, phân tích và thẩm định chỉ số quy hoạch, cơ cấu sử dụng đất và mật độ xây dựng",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
