@@ -1,52 +1,47 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,14 +56,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.data.PlanningDataRepository
 import com.example.ui.PlanningViewModel
-import com.example.ui.theme.CategoryTower
-import com.example.ui.theme.CategoryVilla
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.SuccessGreen
-import com.example.ui.theme.WarningYellow
 import com.example.util.FormatUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,8 +75,13 @@ fun CalculatorScreen(
     val basementsStr by viewModel.calcBasements.collectAsState()
     val compliance by viewModel.complianceResult.collectAsState()
 
-    var dropdownExpanded by remember { mutableStateOf(false) }
-    val allPlots = remember { PlanningDataRepository.getAllPlots() }
+    var showPlotPicker by remember { mutableStateOf(false) }
+    var pickerQuery by remember { mutableStateOf("") }
+    val buildablePlots = remember {
+        PlanningDataRepository.getAllPlots().filter {
+            it.buildingDensity != null || it.far != null
+        }
+    }
 
     Column(
         modifier = modifier
@@ -141,52 +137,44 @@ fun CalculatorScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                ExposedDropdownMenuBox(
-                    expanded = dropdownExpanded,
-                    onExpandedChange = { dropdownExpanded = !dropdownExpanded }
+                Surface(
+                    onClick = {
+                        pickerQuery = ""
+                        showPlotPicker = true
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("plot_dropdown_selector")
                 ) {
-                    OutlinedTextField(
-                        value = if (selectedPlot != null) "${selectedPlot?.symbol} - ${selectedPlot?.name} (${selectedPlot?.zone})" else "Chọn từ danh sách 100+ lô quy hoạch...",
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
+                    Row(
                         modifier = Modifier
-                            .menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable)
                             .fillMaxWidth()
-                            .testTag("plot_dropdown_selector"),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                        )
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = dropdownExpanded,
-                        onDismissRequest = { dropdownExpanded = false }
+                            .padding(horizontal = 14.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        allPlots.take(50).forEach { plot ->
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(
-                                            text = "${plot.symbol} - ${plot.name}",
-                                            fontWeight = FontWeight.Bold,
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                        Text(
-                                            text = "DT: ${FormatUtils.formatArea(plot.landArea)} • MĐ: ${FormatUtils.formatDensity(plot.buildingDensity)} • Tầng: ${plot.maxFloors} • FAR: ${FormatUtils.formatFar(plot.far)}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    viewModel.selectPlotForCalculator(plot)
-                                    dropdownExpanded = false
-                                }
-                            )
-                        }
+                        Text(
+                            text = if (selectedPlot != null) {
+                                "${selectedPlot?.symbol} - ${selectedPlot?.name} (${selectedPlot?.zone})"
+                            } else {
+                                "Chọn từ danh sách ${buildablePlots.size} lô quy hoạch (Khu B & C)..."
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (selectedPlot != null) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Mở danh sách lô",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
@@ -448,6 +436,104 @@ fun CalculatorScreen(
         }
 
         Spacer(modifier = Modifier.height(20.dp))
+    }
+
+    if (showPlotPicker) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val filteredPickerPlots = remember(pickerQuery, buildablePlots) {
+            val q = pickerQuery.trim().lowercase()
+            if (q.isEmpty()) buildablePlots
+            else buildablePlots.filter {
+                it.symbol.lowercase().contains(q) ||
+                    it.name.lowercase().contains(q) ||
+                    it.zone.lowercase().contains(q)
+            }
+        }
+
+        ModalBottomSheet(
+            onDismissRequest = { showPlotPicker = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.8f)
+                    .padding(horizontal = 16.dp)
+            ) {
+                Text(
+                    text = "Chọn lô quy hoạch đối chiếu",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = pickerQuery,
+                    onValueChange = { pickerQuery = it },
+                    placeholder = { Text("Tìm mã lô (BT17.1, CT10, SH1, TT4...)") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = null)
+                    },
+                    trailingIcon = {
+                        if (pickerQuery.isNotEmpty()) {
+                            IconButton(onClick = { pickerQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Xóa")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredPickerPlots, key = { it.id }) { plot ->
+                        Surface(
+                            onClick = {
+                                viewModel.selectPlotForCalculator(plot)
+                                showPlotPicker = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${plot.symbol} - ${plot.name}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = plot.zone,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "DT: ${FormatUtils.formatArea(plot.landArea)} • MĐ: ${FormatUtils.formatDensity(plot.buildingDensity)} • Tầng: ${plot.maxFloors} • FAR: ${FormatUtils.formatFar(plot.far)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

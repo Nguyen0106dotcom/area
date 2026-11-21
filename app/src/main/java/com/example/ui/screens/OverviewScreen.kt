@@ -1,6 +1,9 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedContent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -23,13 +26,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apartment
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Landscape
 import androidx.compose.material.icons.filled.SquareFoot
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -41,8 +45,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -76,7 +78,16 @@ fun OverviewScreen(
     modifier: Modifier = Modifier
 ) {
     val selectedZone by viewModel.selectedZone.collectAsState()
+    val customBannerBitmap by viewModel.customBannerBitmap.collectAsState()
     val summary = PlanningDataRepository.getSummary(selectedZone)
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.updateCustomBanner(uri)
+        }
+    }
 
     val zones = listOf("Toàn khu", "Khu B", "Khu C")
 
@@ -91,14 +102,23 @@ fun OverviewScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(210.dp)
+                .height(225.dp)
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.banner_urban_planning_1793937081696),
-                contentDescription = "Bản đồ quy hoạch tổng thể",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
+            if (customBannerBitmap != null) {
+                Image(
+                    bitmap = customBannerBitmap!!,
+                    contentDescription = "Ảnh bìa quy hoạch tổng thể",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = R.drawable.img_coastal_masterplan_banner_1795229161714),
+                    contentDescription = "Bản đồ quy hoạch tổng thể",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
 
             // Dark gradient overlay for text readability
             Box(
@@ -114,6 +134,67 @@ fun OverviewScreen(
                         )
                     )
             )
+
+            // Banner Photo Picker Actions (top-right)
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (customBannerBitmap != null) {
+                    Surface(
+                        onClick = { viewModel.resetCustomBanner() },
+                        color = Color(0x990B192C),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
+                        modifier = Modifier.testTag("reset_banner_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = "Khôi phục ảnh mặc định",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                Surface(
+                    onClick = {
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    color = Color(0x990B192C),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
+                    modifier = Modifier.testTag("change_banner_button")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AddPhotoAlternate,
+                            contentDescription = "Đổi ảnh bìa",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "Đổi ảnh bìa",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
 
             // Title & Status inside Banner
             Column(

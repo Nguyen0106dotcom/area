@@ -190,65 +190,81 @@ fun PlanningCard(
                 )
             }
 
-            // Units count and Tourist capacity if present
-            if ((item.unitsCount != null && item.unitsCount > 0) || (item.touristCapacity != null && item.touristCapacity > 0)) {
-                Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (item.unitsCount != null && item.unitsCount > 0) {
-                            Text(
-                                text = "Quy mô: ",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "${item.unitsCount} căn",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        if (item.touristCapacity != null && item.touristCapacity > 0) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "• Du khách: ${FormatUtils.formatInteger(item.touristCapacity)} người",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    if (item.unitsCount != null && item.unitsCount > 0) {
+                        Text(
+                            text = "Quy mô: ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${item.unitsCount} căn",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else if (item.lotSizes.isNotEmpty()) {
+                        Text(
+                            text = item.lotSizes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    } else {
+                        Text(
+                            text = "Xem thông số chi tiết",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (item.touristCapacity != null && item.touristCapacity > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "• ${FormatUtils.formatInteger(item.touristCapacity)} khách",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = {
+                            val text = "${item.symbol} - ${item.name}: DT ${FormatUtils.formatArea(item.landArea)}, MĐXD ${FormatUtils.formatDensity(item.buildingDensity)}, Tầng cao ${item.maxFloors}, FAR ${FormatUtils.formatFar(item.far)}, DT Sàn ${FormatUtils.formatArea(item.maxFloorArea)}"
+                            FormatUtils.copyToClipboard(context, item.symbol.ifEmpty { "Chỉ số" }, text)
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ContentCopy,
+                            contentDescription = "Sao chép",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = {
-                                val text = "${item.symbol} - ${item.name}: DT ${FormatUtils.formatArea(item.landArea)}, MĐXD ${FormatUtils.formatDensity(item.buildingDensity)}, Tầng cao ${item.maxFloors}, FAR ${FormatUtils.formatFar(item.far)}, DT Sàn ${FormatUtils.formatArea(item.maxFloorArea)}"
-                                FormatUtils.copyToClipboard(context, item.symbol.ifEmpty { "Chỉ số" }, text)
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.ContentCopy,
-                                contentDescription = "Sao chép",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        IconButton(
-                            onClick = onCalculateClick,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Tune,
-                                contentDescription = "Thẩm định",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                    IconButton(
+                        onClick = onCalculateClick,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Tune,
+                            contentDescription = "Thẩm định",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }

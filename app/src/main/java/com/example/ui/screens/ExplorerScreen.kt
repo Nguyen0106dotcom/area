@@ -153,8 +153,13 @@ fun ExplorerScreen(
                     )
 
                     zones.forEach { zone ->
+                        val isZoneSelected = if (zone == "Tất cả") {
+                            selectedZone == "Tất cả" || selectedZone == "Toàn khu"
+                        } else {
+                            selectedZone == zone
+                        }
                         FilterChip(
-                            selected = selectedZone == zone,
+                            selected = isZoneSelected,
                             onClick = { viewModel.setZone(zone) },
                             label = { Text(zone) }
                         )

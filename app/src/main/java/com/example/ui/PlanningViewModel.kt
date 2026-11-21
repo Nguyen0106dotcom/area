@@ -1,6 +1,11 @@
 package com.example.ui
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.FavoritesManager
@@ -8,12 +13,17 @@ import com.example.data.ItemLevel
 import com.example.data.LandCategory
 import com.example.data.PlanningDataRepository
 import com.example.data.PlanningItem
+import java.io.File
+import java.io.FileOutputStream
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ComplianceResult(
     val plot: PlanningItem?,
@@ -32,12 +42,17 @@ class PlanningViewModel(application: Application) : AndroidViewModel(application
     private val favoritesManager = FavoritesManager(application)
     val favoriteIds: StateFlow<Set<String>> = favoritesManager.favoriteIds
 
+    private val customBannerFile = File(application.filesDir, "custom_banner.jpg")
+
+    private val _customBannerBitmap = MutableStateFlow<ImageBitmap?>(null)
+    val customBannerBitmap: StateFlow<ImageBitmap?> = _customBannerBitmap.asStateFlow()
+
     // Current navigation tab
     private val _currentTab = MutableStateFlow(0)
     val currentTab: StateFlow<Int> = _currentTab.asStateFlow()
 
-    // Zone filter ("Tất cả", "Khu B", "Khu C")
-    private val _selectedZone = MutableStateFlow("Tất cả")
+    // Zone filter ("Toàn khu" / "Tất cả", "Khu B", "Khu C")
+    private val _selectedZone = MutableStateFlow("Toàn khu")
     val selectedZone: StateFlow<String> = _selectedZone.asStateFlow()
 
     // Category filter
@@ -72,6 +87,85 @@ class PlanningViewModel(application: Application) : AndroidViewModel(application
     private val _calcBasements = MutableStateFlow("0")
     val calcBasements: StateFlow<String> = _calcBasements.asStateFlow()
 
+    init {
+        loadSavedBanner()
+    }
+
+    private fun loadSavedBanner() {
+        viewModelScope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                if (customBannerFile.exists()) {
+                    decodeSampledBitmapFromFile(customBannerFile, 1600, 900)?.asImageBitmap()
+                } else {
+                    null
+                }
+            }
+            _customBannerBitmap.value = bitmap
+        }
+    }
+
+    fun updateCustomBanner(uri: Uri) {
+        viewModelScope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                val context = getApplication<Application>()
+                val decoded = context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream)
+                } ?: return@withContext null
+
+                val scaled = scaleBitmapDown(decoded, 1600)
+                FileOutputStream(customBannerFile).use { out ->
+                    scaled.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                if (scaled !== decoded) decoded.recycle()
+                scaled.asImageBitmap()
+            }
+            if (bitmap != null) {
+                _customBannerBitmap.value = bitmap
+            }
+        }
+    }
+
+    fun resetCustomBanner() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                if (customBannerFile.exists()) {
+                    customBannerFile.delete()
+                }
+            }
+            _customBannerBitmap.value = null
+        }
+    }
+
+    private fun decodeSampledBitmapFromFile(file: File, reqWidth: Int, reqHeight: Int): Bitmap? {
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, options)
+        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
+        options.inJustDecodeBounds = false
+        return BitmapFactory.decodeFile(file.absolutePath, options)
+    }
+
+    private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+        val (height, width) = options.outHeight to options.outWidth
+        var inSampleSize = 1
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight = height / 2
+            val halfWidth = width / 2
+            while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
+    }
+
+    private fun scaleBitmapDown(bitmap: Bitmap, maxDimension: Int): Bitmap {
+        val maxCurrent = maxOf(bitmap.width, bitmap.height)
+        if (maxCurrent <= maxDimension) return bitmap
+        val ratio = maxDimension.toFloat() / maxCurrent.toFloat()
+        val newWidth = (bitmap.width * ratio).toInt().coerceAtLeast(1)
+        val newHeight = (bitmap.height * ratio).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+    }
+
     // Filtered plots list
     val filteredPlots: StateFlow<List<PlanningItem>> = combine(
         _selectedZone,
@@ -81,10 +175,9 @@ class PlanningViewModel(application: Application) : AndroidViewModel(application
         favoriteIds
     ) { zone, category, query, onlyFavs, favs ->
         PlanningDataRepository.items.filter { item ->
-            // Skip top zone and overall summary headers from plot list
             val isPlotOrSubgroup = item.level == ItemLevel.PLOT_DETAIL || item.level == ItemLevel.SUBGROUP_HEADER
             val matchesZone = when (zone) {
-                "Tất cả" -> true
+                "Tất cả", "Toàn khu" -> true
                 else -> item.zone == zone
             }
             val matchesCategory = category == null || item.category == category
@@ -119,7 +212,7 @@ class PlanningViewModel(application: Application) : AndroidViewModel(application
         val maxAllowedFar = plot?.far ?: 1.2
         val maxAllowedFloors = plot?.maxFloors?.split("-")?.lastOrNull()?.toDoubleOrNull() ?: 4.0
 
-        val isDensityOk = density <= (maxAllowedDensity + 0.05) // allow micro floating tolerance
+        val isDensityOk = density <= (maxAllowedDensity + 0.05)
         val isFarOk = far <= (maxAllowedFar + 0.05)
         val isFloorsOk = floors <= maxAllowedFloors
 
@@ -194,7 +287,7 @@ class PlanningViewModel(application: Application) : AndroidViewModel(application
         val parsedFloor = item.maxFloors.split("-").lastOrNull()?.trim() ?: "3"
         _calcFloors.value = if (parsedFloor.isNotEmpty() && parsedFloor != "-") parsedFloor else "3"
         item.basements?.let { _calcBasements.value = it.toString() } ?: run { _calcBasements.value = "0" }
-        _currentTab.value = 2 // Navigate to calculator
+        _currentTab.value = 2
     }
 
     fun updateCalcInputs(land: String, footprint: String, floors: String, basements: String) {
